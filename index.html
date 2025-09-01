@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Test de Personalidad DISC — versión avanzada (15 preguntas)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    .question-card{border-left:6px solid #0d6efd}
+  </style>
+</head>
+<body class="bg-light">
+  <div class="container py-5">
+    <h1 class="text-center mb-2">Test de Personalidad DISC</h1>
+    <p class="text-center text-muted mb-4">Versión avanzada: 15 escenarios complejos con opciones mezcladas</p>
+
+    <form id="discForm" class="card p-4 shadow-sm question-card">
+      <div id="questions"></div>
+      <hr class="my-4">
+      <button type="submit" class="btn btn-primary w-100">Ver resultados</button>
+    </form>
+
+    <div id="result" class="mt-4 p-4 card shadow-sm d-none"></div>
+    <canvas id="chart" class="mt-3 d-none"></canvas>
+    <button id="downloadPdf" class="btn btn-success mt-3 d-none">Descargar resultados en PDF</button>
+  </div>
+
+  <script>
+    // Utilidad para mezclar arrays (Fisher–Yates)
+    function shuffle(array){
+      const a = array.slice();
+      for(let i=a.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [a[i],a[j]] = [a[j],a[i]];
+      }
+      return a;
+    }
+
+    // Banco de preguntas (15) con opciones indirectas. El valor es la letra DISC; el orden se mezcla al renderizar.
+    const QUESTIONS = [
+      {
+        text: "1. El cliente cambió objetivos a última hora y el equipo está confundido. ¿Cuál es tu impulso inicial?",
+        options: [
+          {label: "Reencuadro el plan con metas claras y marco próximos hitos.", value: "D"},
+          {label: "Genero un espacio breve para escuchar y bajar la tensión.", value: "S"},
+          {label: "Señalo las implicaciones técnicas y ajusto procesos.", value: "C"},
+          {label: "Lanzo un mensaje de ánimo y alineo voluntades.", value: "I"}
+        ]
+      },
+      {
+        text: "2. Te asignan liderar una iniciativa transversal sin autoridad formal.",
+        options: [
+          {label: "Busco aliados clave y construyo momentum social.", value: "I"},
+          {label: "Defino métricas de impacto y tomo la delantera.", value: "D"},
+          {label: "Establezco rutinas previsibles para dar estabilidad.", value: "S"},
+          {label: "Documento criterios y clarifico responsabilidades por escrito.", value: "C"}
+        ]
+      },
+      {
+        text: "3. Surgen quejas por baja calidad en un entregable crítico.",
+        options: [
+          {label: "Analizo la causa raíz y refuerzo controles.", value: "C"},
+          {label: "Tomo decisiones rápidas para corregir el rumbo.", value: "D"},
+          {label: "Acompaño al equipo para sostener el ánimo.", value: "S"},
+          {label: "Comunico con optimismo el plan de mejora.", value: "I"}
+        ]
+      },
+      {
+        text: "4. En una reunión extensa, la conversación se dispersa.",
+        options: [
+          {label: "Intervengo para cerrar temas y acordar acciones inmediatas.", value: "D"},
+          {label: "Recojo puntos y ordeno el consenso con calma.", value: "S"},
+          {label: "Hago un resumen atractivo para recuperar la atención.", value: "I"},
+          {label: "Estructuro los argumentos y pido precisión.", value: "C"}
+        ]
+      },
+      {
+        text: "5. Un compañero discrepa fuertemente de tu enfoque.",
+        options: [
+          {label: "Presento datos y criterios para sostener el método.", value: "C"},
+          {label: "Escucho, valido su perspectiva y busco un punto medio.", value: "S"},
+          {label: "Defiendo mi posición con firmeza y objetivo claro.", value: "D"},
+          {label: "Uso influencia y storytelling para persuadir.", value: "I"}
+        ]
+      },
+      {
+        text: "6. Hay ambigüedad en roles y plazos al comenzar un proyecto.",
+        options: [
+          {label: "Creo un cronograma básico y reparto prioridades sin esperar.", value: "D"},
+          {label: "Redacto un marco de trabajo con definiciones exactas.", value: "C"},
+          {label: "Establezco rituales de coordinación para dar ritmo.", value: "S"},
+          {label: "Convoco a los interesados y genero adhesión.", value: "I"}
+        ]
+      },
+      {
+        text: "7. Se te pide presentar un plan con alto nivel de incertidumbre.",
+        options: [
+          {label: "Enfatizo riesgos y supuestos con trazabilidad.", value: "C"},
+          {label: "Propongo una apuesta valiente con metas audaces.", value: "D"},
+          {label: "Busco participación para co-crear el relato.", value: "I"},
+          {label: "Diseño una hoja de ruta gradual y estable.", value: "S"}
+        ]
+      },
+      {
+        text: "8. El equipo está desmotivado tras varios rechazos de propuestas.",
+        options: [
+          {label: "Trazo una victoria rápida para recuperar impulso.", value: "D"},
+          {label: "Organizo una conversación empática y contenedora.", value: "S"},
+          {label: "Celebro pequeños logros y contagio optimismo.", value: "I"},
+          {label: "Reviso criterios de evaluación y ajusto el estándar.", value: "C"}
+        ]
+      },
+      {
+        text: "9. Debes integrar a una persona nueva con estilo muy distinto al tuyo.",
+        options: [
+          {label: "Defino expectativas claras y resultados tempranos.", value: "D"},
+          {label: "Establezco protocolos para facilitar su adaptación.", value: "C"},
+          {label: "Creo espacios de bienvenida y conexión.", value: "I"},
+          {label: "Le brindo acompañamiento paciente y constante.", value: "S"}
+        ]
+      },
+      {
+        text: "10. Te piden feedback difícil a una persona sensible.",
+        options: [
+          {label: "Voy al punto con respeto, orientado al resultado.", value: "D"},
+          {label: "Cuido el vínculo y equilibro lo positivo y lo desafiante.", value: "I"},
+          {label: "Planteo hechos verificables y sugerencias específicas.", value: "C"},
+          {label: "Lo hago en un entorno seguro y sereno.", value: "S"}
+        ]
+      },
+      {
+        text: "11. Hay presión por entregar y los requisitos siguen cambiando.",
+        options: [
+          {label: "Repriorizo con decisión y mantengo foco en impacto.", value: "D"},
+          {label: "Fortalezco la coordinación para amortiguar el vaivén.", value: "S"},
+          {label: "Negocio expectativas con comunicación abierta.", value: "I"},
+          {label: "Versiono especificaciones y trazo control de cambios.", value: "C"}
+        ]
+      },
+      {
+        text: "12. Un proceso muy regulado ralentiza tu trabajo.",
+        options: [
+          {label: "Identifico atajos seguros y acelero la ejecución.", value: "D"},
+          {label: "Busco mejorar la experiencia de quienes lo usan.", value: "I"},
+          {label: "Respeto el flujo y propongo mejoras incrementales.", value: "S"},
+          {label: "Ajusto el procedimiento sin perder conformidad.", value: "C"}
+        ]
+      },
+      {
+        text: "13. Te plantean una meta ambiciosa con pocos recursos.",
+        options: [
+          {label: "Movilizo a la gente con un relato inspirador.", value: "I"},
+          {label: "Simplifico, priorizo y ejecuto con fuerza.", value: "D"},
+          {label: "Creo un marco ordenado para sostener el esfuerzo.", value: "S"},
+          {label: "Optimizó el uso de recursos con criterios técnicos.", value: "C"}
+        ]
+      },
+      {
+        text: "14. Una discrepancia técnica detiene a dos áreas clave.",
+        options: [
+          {label: "Facilito el diálogo y bajo la tensión.", value: "S"},
+          {label: "Analizo evidencias y defino un estándar común.", value: "C"},
+          {label: "Intervengo y decido para desbloquear.", value: "D"},
+          {label: "Encuadro el problema para alinear voluntades.", value: "I"}
+        ]
+      },
+      {
+        text: "15. Te ofrecen liderar un reto visible con alto riesgo de fallo.",
+        options: [
+          {label: "Acepto y fijo metas exigentes; me motiva el desafío.", value: "D"},
+          {label: "Acepto si puedo construir apoyo y visibilidad positiva.", value: "I"},
+          {label: "Acepto si hay procesos claros y soporte estable.", value: "S"},
+          {label: "Acepto con criterios de calidad y control definidos.", value: "C"}
+        ]
+      }
+    ];
+
+    // Render dinámico con orden mezclado por pregunta
+    const qContainer = document.getElementById('questions');
+    QUESTIONS.forEach((q, idx) => {
+      const card = document.createElement('div');
+      card.className = 'mb-4';
+
+      const label = document.createElement('label');
+      label.className = 'form-label fw-semibold';
+      label.textContent = q.text;
+      card.appendChild(label);
+
+      const options = shuffle(q.options);
+      options.forEach((opt, i) => {
+        const id = `q${idx+1}_${i}`;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'form-check';
+
+        const input = document.createElement('input');
+        input.className = 'form-check-input';
+        input.type = 'radio';
+        input.name = `q${idx+1}`;
+        input.id = id;
+        input.value = opt.value;
+        if(i===0) input.required = true; // obliga a responder cada pregunta
+
+        const lbl = document.createElement('label');
+        lbl.className = 'form-check-label';
+        lbl.setAttribute('for', id);
+        lbl.textContent = opt.label;
+
+        wrapper.appendChild(input);
+        wrapper.appendChild(lbl);
+        card.appendChild(wrapper);
+      });
+
+      qContainer.appendChild(card);
+    });
+
+    const descriptions = {
+      D: "Dominancia: Directo, competitivo, orientado a resultados.",
+      I: "Influencia: Entusiasta, persuasivo, sociable.",
+      S: "Estabilidad: Sereno, paciente, confiable.",
+      C: "Cumplimiento: Analítico, preciso, disciplinado."
+    };
+
+    document.getElementById('discForm').addEventListener('submit', function(e){
+      e.preventDefault();
+      const formData = new FormData(this);
+      const scores = {D:0, I:0, S:0, C:0};
+      for (const [, val] of formData.entries()) {
+        if(scores[val] !== undefined) scores[val]++;
+      }
+
+      const max = Math.max(...Object.values(scores));
+      const personality = Object.keys(scores).filter(k => scores[k] === max);
+
+      const resultDiv = document.getElementById('result');
+      resultDiv.classList.remove('d-none');
+      resultDiv.innerHTML = `
+        <h3 class="mb-2">Tu estilo principal DISC es:</h3>
+        <p class="mb-2"><strong>${personality.join(' / ')}</strong></p>
+        <ul class="mb-0">${personality.map(p => `<li>${descriptions[p]}</li>`).join('')}</ul>
+      `;
+
+      // Gráfico
+      const canvas = document.getElementById('chart');
+      canvas.classList.remove('d-none');
+      const ctx = canvas.getContext('2d');
+      if(window.discChart) window.discChart.destroy();
+      window.discChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Dominancia (D)','Influencia (I)','Estabilidad (S)','Cumplimiento (C)'],
+          datasets: [{
+            label: 'Puntaje',
+            data: [scores.D, scores.I, scores.S, scores.C]
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+      });
+
+      // Habilitar PDF y guardar datos
+      document.getElementById('downloadPdf').classList.remove('d-none');
+      window.discResults = { scores, personality };
+    });
+
+    // Generar PDF con el gráfico incluido
+    document.getElementById('downloadPdf').addEventListener('click', async function(){
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const margin = 40;
+
+      const res = window.discResults;
+      const titleY = margin + 10;
+      doc.setFontSize(18);
+      doc.text('Resultados del Test DISC — versión avanzada', margin, titleY);
+
+      doc.setFontSize(12);
+      let y = titleY + 30;
+      doc.text(`Estilo(s) principal(es): ${res.personality.join(' / ')}`, margin, y);
+      y += 20;
+      res.personality.forEach(p => { doc.text(`• ${descriptions[p]}`, margin, y); y += 16; });
+
+      y += 10;
+      doc.text('Puntajes:', margin, y); y += 18;
+      doc.text(`Dominancia (D): ${res.scores.D}`, margin, y); y += 16;
+      doc.text(`Influencia (I): ${res.scores.I}`, margin, y); y += 16;
+      doc.text(`Estabilidad (S): ${res.scores.S}`, margin, y); y += 16;
+      doc.text(`Cumplimiento (C): ${res.scores.C}`, margin, y); y += 24;
+
+      // Agregar el gráfico como imagen
+      const chartCanvas = document.getElementById('chart');
+      const imgData = chartCanvas.toDataURL('image/png', 1.0);
+      const imgWidth = 520; // ancho aprox dentro de A4 con márgenes
+      const aspect = chartCanvas.height / chartCanvas.width;
+      const imgHeight = imgWidth * aspect;
+      doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
+
+      doc.save('Resultados_DISC_Avanzado.pdf');
+    });
+  </script>
+</body>
+</html>
